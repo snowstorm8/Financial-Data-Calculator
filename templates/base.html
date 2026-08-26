@@ -1,0 +1,20 @@
+<html>
+  <head>
+    <title>{% block title %}Financial Calculator{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <div class="navbar">
+      <a href="/">Home</a>
+      <div class="dropdown">
+        <button class="dropbtn">Choose
+          <i class="fa fa-caret-down"></i>
+        </button>
+        <div class="dropdown-content">
+          {% block nav_links %}{% endblock %}
+        </div>
+      </div>
+    </div>
+    {% block content %}{% endblock %}
+  </body>
+</html>

@@ -6,6 +6,7 @@ contract is documented in its docstring.
 """
 
 import os
+import sys
 
 import joblib
 import pandas as pd
@@ -20,9 +21,14 @@ MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
 
 
 def _load(name):
-    model = joblib.load(os.path.join(MODELS_DIR, f'{name}_model.joblib'))
-    metadata = joblib.load(os.path.join(MODELS_DIR, f'{name}_metadata.joblib'))
-    return model, metadata
+    model_path = os.path.join(MODELS_DIR, f'{name}_model.joblib')
+    metadata_path = os.path.join(MODELS_DIR, f'{name}_metadata.joblib')
+    if not os.path.exists(model_path):
+        sys.exit(
+            f"Missing {model_path}. Run 'python train_models.py' first to "
+            "train and persist the models this app serves."
+        )
+    return joblib.load(model_path), joblib.load(metadata_path)
 
 
 _travel_model, _travel_meta = _load('travel_insurance')
@@ -164,11 +170,14 @@ def calculate_loan():
 
 @app.route('/calculate_car', methods=['POST'])
 def calculate_car():
-    """Car insurance claim risk. Body must contain: age, gender,
-    driving_experience, education, income, vehicle_year (categories -
-    see /calculate_car/categories), credit_score, vehicle_ownership,
-    married, children, annual_mileage, speeding_violations, duis,
-    past_accidents -> {"claim_predicted": <bool>}."""
+    """Car insurance claim risk. Body must contain: age (one of '16-25',
+    '26-39', '40-64', '65+'), gender ('male'/'female'), driving_experience
+    (one of '0-9y', '10-19y', '20-29y', '30y+'), education (one of
+    'high school', 'university', 'none'), income (one of 'poverty',
+    'working class', 'middle class', 'upper class'), vehicle_year
+    ('before 2015'/'after 2015'), credit_score, vehicle_ownership, married,
+    children, annual_mileage, speeding_violations, duis, past_accidents
+    -> {"claim_predicted": <bool>}."""
     data = request.get_json()
     if data is None:
         return jsonify({"error": "Invalid JSON data"}), 401

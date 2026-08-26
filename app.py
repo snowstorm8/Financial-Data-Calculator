@@ -1,0 +1,235 @@
+"""Flask server for the financial calculator.
+
+Loads models trained and persisted by train_models.py (run that first —
+see README) instead of retraining on every request. Each route's JSON
+contract is documented in its docstring.
+"""
+
+import os
+
+import joblib
+import pandas as pd
+from flask import Flask, jsonify, render_template, request
+
+from preprocessing import alpha_categorize
+from tax import calculate_taxes
+
+app = Flask(__name__)
+
+MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
+
+
+def _load(name):
+    model = joblib.load(os.path.join(MODELS_DIR, f'{name}_model.joblib'))
+    metadata = joblib.load(os.path.join(MODELS_DIR, f'{name}_metadata.joblib'))
+    return model, metadata
+
+
+_travel_model, _travel_meta = _load('travel_insurance')
+_health_model, _health_meta = _load('health_insurance')
+_salary_model, _salary_meta = _load('salary')
+_loan_model, _loan_meta = _load('loan')
+_car_model, _car_meta = _load('car_insurance')
+
+
+class InvalidInput(ValueError):
+    pass
+
+
+def _require_float(data, key):
+    if key not in data:
+        raise InvalidInput(f"missing field '{key}'")
+    try:
+        return float(data[key])
+    except (TypeError, ValueError):
+        raise InvalidInput(f"field '{key}' must be a number")
+
+
+def _require_category(data, key, allowed):
+    if key not in data:
+        raise InvalidInput(f"missing field '{key}'")
+    value = data[key]
+    if value not in allowed:
+        raise InvalidInput(f"field '{key}' must be one of {sorted(allowed)}")
+    return value
+
+
+@app.errorhandler(InvalidInput)
+def _handle_invalid_input(error):
+    return jsonify({'error': str(error)}), 400
+
+
+@app.route('/')
+def index():
+    return render_template('main website.html')
+
+
+@app.route('/health')
+def health_page():
+    return render_template('health.html')
+
+
+@app.route('/sum', methods=['POST'])
+def sum():
+    """Travel insurance eligibility. Existing contract, unchanged:
+    body {value1..value8} -> {"sum": "<result text>"}."""
+    data = request.get_json()
+    if data is None:
+        return jsonify({"error": "Invalid JSON data"}), 401
+    val1 = float(data.get('value1', 0))
+    val2 = float(data.get('value2', 0))
+    val3 = float(data.get('value3', 0))
+    val4 = float(data.get('value4', 0))
+    val5 = float(data.get('value5', 0))
+    val6 = float(data.get('value6', 0))
+    val7 = float(data.get('value7', 0))
+    val8 = float(data.get('value8', 0))
+    if _travel_model.predict([[val1, val2, val8, val4, val3, val5, val6, val7]])[0] == 1:
+        sum = 'You will get travel insurance'
+    else:
+        sum = 'You will not get travel insurance'
+    return jsonify({'sum': sum})
+
+
+@app.route('/calculate_health', methods=['POST'])
+def calculate_health():
+    """Health insurance cost estimate. Matches health.html's existing
+    fetch() contract: body {age_health, sex, has_children, is_a_smoker,
+    bmi} -> {"health_sum": "<result text>"}."""
+    data = request.get_json()
+    if data is None:
+        return jsonify({"error": "Invalid JSON data"}), 401
+    age = _require_float(data, 'age_health')
+    sex = _require_float(data, 'sex')
+    has_children = _require_float(data, 'has_children')
+    is_a_smoker = _require_float(data, 'is_a_smoker')
+    bmi = _require_float(data, 'bmi')
+    row = pd.DataFrame(
+        [[age, sex, bmi, has_children, is_a_smoker]],
+        columns=_health_meta['feature_columns'],
+    )
+    predicted_cost = _health_model.predict(row)[0]
+    return jsonify({'health_sum': f'Estimated health insurance cost: ${predicted_cost:,.2f}'})
+
+
+@app.route('/calculate_salary', methods=['POST'])
+def calculate_salary():
+    """Estimated average salary (in thousands of dollars). Body must
+    contain: rating, hourly, employer_provided, same_state, age,
+    python_yn, r_yn, spark, aws, excel -> {"predicted_salary_k": <float>}."""
+    data = request.get_json()
+    if data is None:
+        return jsonify({"error": "Invalid JSON data"}), 401
+    features = [
+        _require_float(data, 'rating'),
+        _require_float(data, 'hourly'),
+        _require_float(data, 'employer_provided'),
+        _require_float(data, 'same_state'),
+        _require_float(data, 'age'),
+        _require_float(data, 'python_yn'),
+        _require_float(data, 'r_yn'),
+        _require_float(data, 'spark'),
+        _require_float(data, 'aws'),
+        _require_float(data, 'excel'),
+    ]
+    row = pd.DataFrame([features], columns=_salary_meta['feature_columns'])
+    predicted = _salary_model.predict(row)[0]
+    return jsonify({'predicted_salary_k': round(float(predicted), 2)})
+
+
+@app.route('/calculate_loan', methods=['POST'])
+def calculate_loan():
+    """Loan repayability. Body must contain the twelve numeric loan
+    fields (credit.policy, int.rate, installment, log.annual.inc, dti,
+    fico, days.with.cr.line, revol.bal, revol.util, inq.last.6mths,
+    delinq.2yrs, pub.rec) plus purpose (one of the known purpose
+    categories) -> {"loan_repayable": <bool>}."""
+    data = request.get_json()
+    if data is None:
+        return jsonify({"error": "Invalid JSON data"}), 401
+
+    numeric_fields = [c for c in _loan_meta['feature_columns'] if not c.startswith('purpose_')]
+    values = {field: _require_float(data, field) for field in numeric_fields}
+    purpose = _require_category(data, 'purpose', set(_loan_meta['purpose_categories']))
+
+    row = [values[field] for field in numeric_fields]
+    for column in _loan_meta['feature_columns']:
+        if column.startswith('purpose_'):
+            row.append(1.0 if column == f'purpose_{purpose}' else 0.0)
+
+    row_df = pd.DataFrame([row], columns=_loan_meta['feature_columns'])
+    prediction = _loan_model.predict(row_df)[0]
+    return jsonify({'loan_repayable': bool(prediction == 0)})
+
+
+@app.route('/calculate_car', methods=['POST'])
+def calculate_car():
+    """Car insurance claim risk. Body must contain: age, gender,
+    driving_experience, education, income, vehicle_year (categories -
+    see /calculate_car/categories), credit_score, vehicle_ownership,
+    married, children, annual_mileage, speeding_violations, duis,
+    past_accidents -> {"claim_predicted": <bool>}."""
+    data = request.get_json()
+    if data is None:
+        return jsonify({"error": "Invalid JSON data"}), 401
+
+    orders = _car_meta['categorical_orders']
+    age = alpha_categorize(_require_category(data, 'age', set(orders['AGE'])), orders['AGE'])
+    driving_experience = alpha_categorize(
+        _require_category(data, 'driving_experience', set(orders['DRIVING_EXPERIENCE'])),
+        orders['DRIVING_EXPERIENCE'],
+    )
+    education = alpha_categorize(
+        _require_category(data, 'education', set(orders['EDUCATION'])), orders['EDUCATION']
+    )
+    income = alpha_categorize(
+        _require_category(data, 'income', set(orders['INCOME'])), orders['INCOME']
+    )
+    vehicle_year = alpha_categorize(
+        _require_category(data, 'vehicle_year', set(orders['VEHICLE_YEAR'])),
+        orders['VEHICLE_YEAR'],
+    )
+    gender = _require_category(data, 'gender', {'male', 'female'})
+    gender_value = 1.0 if gender == 'female' else 0.0
+
+    row = {
+        'AGE': age,
+        'GENDER': gender_value,
+        'DRIVING_EXPERIENCE': driving_experience,
+        'EDUCATION': education,
+        'INCOME': income,
+        'CREDIT_SCORE': _require_float(data, 'credit_score'),
+        'VEHICLE_OWNERSHIP': _require_float(data, 'vehicle_ownership'),
+        'VEHICLE_YEAR': vehicle_year,
+        'MARRIED': _require_float(data, 'married'),
+        'CHILDREN': _require_float(data, 'children'),
+        'ANNUAL_MILEAGE': _require_float(data, 'annual_mileage'),
+        'SPEEDING_VIOLATIONS': _require_float(data, 'speeding_violations'),
+        'DUIS': _require_float(data, 'duis'),
+        'PAST_ACCIDENTS': _require_float(data, 'past_accidents'),
+    }
+    ordered_row = [row[column] for column in _car_meta['feature_columns']]
+    row_df = pd.DataFrame([ordered_row], columns=_car_meta['feature_columns'])
+    prediction = _car_model.predict(row_df)[0]
+    return jsonify({'claim_predicted': bool(prediction == 1)})
+
+
+@app.route('/calculate_tax', methods=['POST'])
+def calculate_tax():
+    """Income tax. Body {salary, deductible} ->
+    {"final_tax", "surcharge_amount", "cess_amount"}."""
+    data = request.get_json()
+    if data is None:
+        return jsonify({"error": "Invalid JSON data"}), 401
+    salary = _require_float(data, 'salary')
+    deductible = _require_float(data, 'deductible')
+    final_tax, surcharge_amount, cess_amount = calculate_taxes(salary, deductible)
+    return jsonify({
+        'final_tax': final_tax,
+        'surcharge_amount': surcharge_amount,
+        'cess_amount': cess_amount,
+    })
+
+
+if __name__ == '__main__':
+    app.run()

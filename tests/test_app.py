@@ -1,15 +1,3 @@
-import pytest
-
-from app import app
-
-
-@pytest.fixture
-def client():
-    app.config['TESTING'] = True
-    with app.test_client() as client:
-        yield client
-
-
 def test_index_renders(client):
     response = client.get('/')
     assert response.status_code == 200
@@ -57,6 +45,22 @@ def test_calculate_salary_valid_input(client):
     })
     assert response.status_code == 200
     assert 'predicted_salary_k' in response.get_json()
+
+
+def test_calculate_salary_missing_field_returns_400(client):
+    response = client.post('/calculate_salary', json={'rating': 4.5})
+    assert response.status_code == 400
+    assert 'error' in response.get_json()
+
+
+def test_calculate_salary_invalid_type_returns_400(client):
+    response = client.post('/calculate_salary', json={
+        'rating': 'not a number', 'hourly': 0, 'employer_provided': 0,
+        'same_state': 1, 'age': 25, 'python_yn': 1, 'r_yn': 0,
+        'spark': 0, 'aws': 1, 'excel': 1,
+    })
+    assert response.status_code == 400
+    assert 'error' in response.get_json()
 
 
 def test_calculate_loan_valid_input(client):

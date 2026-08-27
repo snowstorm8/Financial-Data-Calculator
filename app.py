@@ -60,6 +60,22 @@ def _require_category(data, key, allowed):
     return value
 
 
+def _feature_row(values, feature_columns):
+    """Build a single-row DataFrame ordered by the model's actual training
+    columns (persisted in metadata), keyed by name rather than position.
+
+    A plain positional list silently mislabels a feature if the metadata's
+    column order ever changes (retraining, dataset edits); looking each
+    value up by name removes that failure mode. A KeyError here means
+    `values` doesn't actually cover the model's features, which is a
+    programming error and should surface, not be swallowed.
+    """
+    return pd.DataFrame(
+        [[values[column] for column in feature_columns]],
+        columns=feature_columns,
+    )
+
+
 @app.errorhandler(InvalidInput)
 def _handle_invalid_input(error):
     return jsonify({'error': str(error)}), 400
@@ -90,7 +106,18 @@ def sum():
     val6 = float(data.get('value6', 0))
     val7 = float(data.get('value7', 0))
     val8 = float(data.get('value8', 0))
-    if _travel_model.predict([[val1, val2, val8, val4, val3, val5, val6, val7]])[0] == 1:
+    values = {
+        'Age': val1,
+        'Employment Type': val2,
+        'GraduateOrNot': val8,
+        'AnnualIncome': val4,
+        'FamilyMembers': val3,
+        'ChronicDiseases': val5,
+        'FrequentFlyer': val6,
+        'EverTravelledAbroad': val7,
+    }
+    row = _feature_row(values, _travel_meta['feature_columns'])
+    if _travel_model.predict(row)[0] == 1:
         sum = 'You will get travel insurance'
     else:
         sum = 'You will not get travel insurance'
@@ -110,10 +137,8 @@ def calculate_health():
     has_children = _require_float(data, 'has_children')
     is_a_smoker = _require_float(data, 'is_a_smoker')
     bmi = _require_float(data, 'bmi')
-    row = pd.DataFrame(
-        [[age, sex, bmi, has_children, is_a_smoker]],
-        columns=_health_meta['feature_columns'],
-    )
+    values = {'age': age, 'sex': sex, 'bmi': bmi, 'children': has_children, 'smoker': is_a_smoker}
+    row = _feature_row(values, _health_meta['feature_columns'])
     predicted_cost = _health_model.predict(row)[0]
     return jsonify({'health_sum': f'Estimated health insurance cost: ${predicted_cost:,.2f}'})
 
@@ -126,19 +151,19 @@ def calculate_salary():
     data = request.get_json()
     if data is None:
         return jsonify({"error": "Invalid JSON data"}), 401
-    features = [
-        _require_float(data, 'rating'),
-        _require_float(data, 'hourly'),
-        _require_float(data, 'employer_provided'),
-        _require_float(data, 'same_state'),
-        _require_float(data, 'age'),
-        _require_float(data, 'python_yn'),
-        _require_float(data, 'r_yn'),
-        _require_float(data, 'spark'),
-        _require_float(data, 'aws'),
-        _require_float(data, 'excel'),
-    ]
-    row = pd.DataFrame([features], columns=_salary_meta['feature_columns'])
+    values = {
+        'Rating': _require_float(data, 'rating'),
+        'hourly': _require_float(data, 'hourly'),
+        'employer_provided': _require_float(data, 'employer_provided'),
+        'same_state': _require_float(data, 'same_state'),
+        'age': _require_float(data, 'age'),
+        'python_yn': _require_float(data, 'python_yn'),
+        'R_yn': _require_float(data, 'r_yn'),
+        'spark': _require_float(data, 'spark'),
+        'aws': _require_float(data, 'aws'),
+        'excel': _require_float(data, 'excel'),
+    }
+    row = _feature_row(values, _salary_meta['feature_columns'])
     predicted = _salary_model.predict(row)[0]
     return jsonify({'predicted_salary_k': round(float(predicted), 2)})
 
@@ -157,13 +182,11 @@ def calculate_loan():
     numeric_fields = [c for c in _loan_meta['feature_columns'] if not c.startswith('purpose_')]
     values = {field: _require_float(data, field) for field in numeric_fields}
     purpose = _require_category(data, 'purpose', set(_loan_meta['purpose_categories']))
-
-    row = [values[field] for field in numeric_fields]
     for column in _loan_meta['feature_columns']:
         if column.startswith('purpose_'):
-            row.append(1.0 if column == f'purpose_{purpose}' else 0.0)
+            values[column] = 1.0 if column == f'purpose_{purpose}' else 0.0
 
-    row_df = pd.DataFrame([row], columns=_loan_meta['feature_columns'])
+    row_df = _feature_row(values, _loan_meta['feature_columns'])
     prediction = _loan_model.predict(row_df)[0]
     return jsonify({'loan_repayable': bool(prediction == 0)})
 
@@ -217,8 +240,7 @@ def calculate_car():
         'DUIS': _require_float(data, 'duis'),
         'PAST_ACCIDENTS': _require_float(data, 'past_accidents'),
     }
-    ordered_row = [row[column] for column in _car_meta['feature_columns']]
-    row_df = pd.DataFrame([ordered_row], columns=_car_meta['feature_columns'])
+    row_df = _feature_row(row, _car_meta['feature_columns'])
     prediction = _car_model.predict(row_df)[0]
     return jsonify({'claim_predicted': bool(prediction == 1)})
 

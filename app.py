@@ -11,6 +11,7 @@ import sys
 import joblib
 import pandas as pd
 from flask import Flask, jsonify, render_template, request
+from werkzeug.exceptions import HTTPException
 
 from preprocessing import alpha_categorize
 from tax import calculate_taxes
@@ -60,6 +61,16 @@ def _require_category(data, key, allowed):
     return value
 
 
+def _optional_float(data, key, default=0):
+    """Like _require_float, but a missing key falls back to `default`
+    instead of a 400 — this is /sum's existing, intentionally lenient
+    contract. A *present* non-numeric value is still a 400, not a crash."""
+    try:
+        return float(data.get(key, default))
+    except (TypeError, ValueError):
+        raise InvalidInput(f"field '{key}' must be a number")
+
+
 def _feature_row(values, feature_columns):
     """Build a single-row DataFrame ordered by the model's actual training
     columns (persisted in metadata), keyed by name rather than position.
@@ -81,6 +92,21 @@ def _handle_invalid_input(error):
     return jsonify({'error': str(error)}), 400
 
 
+@app.errorhandler(Exception)
+def _handle_unexpected_error(error):
+    """Every route here is a JSON API (aside from the two HTML pages), so an
+    unhandled error — a prediction-time crash, a corrupt model artifact,
+    a genuine bug — should still come back as JSON, not Flask's default
+    HTML 500 page. HTTPExceptions (404, 405, ...) are left to their normal
+    handling; only genuinely unexpected exceptions are converted here, and
+    they're logged in full rather than silently swallowed.
+    """
+    if isinstance(error, HTTPException):
+        return error
+    app.logger.exception('Unhandled exception on %s', request.path)
+    return jsonify({'error': 'internal server error'}), 500
+
+
 @app.route('/')
 def index():
     return render_template('main website.html')
@@ -98,14 +124,14 @@ def sum():
     data = request.get_json()
     if data is None:
         return jsonify({"error": "Invalid JSON data"}), 401
-    val1 = float(data.get('value1', 0))
-    val2 = float(data.get('value2', 0))
-    val3 = float(data.get('value3', 0))
-    val4 = float(data.get('value4', 0))
-    val5 = float(data.get('value5', 0))
-    val6 = float(data.get('value6', 0))
-    val7 = float(data.get('value7', 0))
-    val8 = float(data.get('value8', 0))
+    val1 = _optional_float(data, 'value1')
+    val2 = _optional_float(data, 'value2')
+    val3 = _optional_float(data, 'value3')
+    val4 = _optional_float(data, 'value4')
+    val5 = _optional_float(data, 'value5')
+    val6 = _optional_float(data, 'value6')
+    val7 = _optional_float(data, 'value7')
+    val8 = _optional_float(data, 'value8')
     values = {
         'Age': val1,
         'Employment Type': val2,

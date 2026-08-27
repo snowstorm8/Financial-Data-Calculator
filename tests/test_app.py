@@ -22,6 +22,43 @@ def test_sum_missing_body_returns_error(client):
     assert response.status_code in (400, 401)
 
 
+def test_sum_non_numeric_value_returns_400_json_not_500_html(client):
+    response = client.post('/sum', json={
+        'value1': 'not a number', 'value2': 1, 'value3': 1, 'value4': 1,
+        'value5': 1, 'value6': 1, 'value7': 1, 'value8': 1,
+    })
+    assert response.status_code == 400
+    assert response.content_type.startswith('application/json')
+    assert 'error' in response.get_json()
+
+
+def test_sum_missing_value_defaults_to_zero(client):
+    # /sum's existing contract: an absent value# defaults to 0 rather than
+    # erroring, unlike the other routes' _require_float fields.
+    response = client.post('/sum', json={
+        'value2': 1, 'value3': 1, 'value4': 1,
+        'value5': 1, 'value6': 1, 'value7': 1, 'value8': 1,
+    })
+    assert response.status_code == 200
+
+
+def test_unexpected_prediction_failure_returns_json_not_html(client, monkeypatch):
+    import app as app_module
+
+    class _BrokenModel:
+        def predict(self, row):
+            raise RuntimeError('simulated model/artifact failure')
+
+    monkeypatch.setattr(app_module, '_health_model', _BrokenModel())
+    response = client.post('/calculate_health', json={
+        'age_health': 20, 'sex': 1, 'has_children': 1,
+        'is_a_smoker': 1, 'bmi': 20.5,
+    })
+    assert response.status_code == 500
+    assert response.content_type.startswith('application/json')
+    assert 'error' in response.get_json()
+
+
 def test_calculate_health_valid_input(client):
     response = client.post('/calculate_health', json={
         'age_health': 20, 'sex': 1, 'has_children': 1,

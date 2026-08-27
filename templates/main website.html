@@ -84,10 +84,16 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ value1, value2, value3, value4, value5, value6, value7, value8 })
         })
-        .then(response => response.json())
-        .then(data => {
-          const value_sum = data.sum;
-          document.getElementById("text").textContent = value_sum;
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+          if (!ok) {
+            document.getElementById("text").textContent = data.error || 'Something went wrong. Please try again.';
+            return;
+          }
+          document.getElementById("text").textContent = data.sum;
+        })
+        .catch(() => {
+          document.getElementById("text").textContent = 'Could not reach the server. Please try again.';
         });
       }
     </script>

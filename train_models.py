@@ -20,6 +20,7 @@ from sklearn.ensemble import (
 from sklearn.model_selection import train_test_split
 
 from preprocessing import (
+    CAR_INSURANCE_CATEGORY_ORDERS,
     FMconv,
     YNconv,
     YNlowerconv,
@@ -111,11 +112,14 @@ def train_car_insurance_model():
     cri.drop(columns=['ID', 'RACE', 'VEHICLE_TYPE', 'POSTAL_CODE'], inplace=True)
     cri['GENDER'] = cri['GENDER'].apply(FMconv)
 
-    categorical_orders = {}
-    for column in ['AGE', 'DRIVING_EXPERIENCE', 'EDUCATION', 'INCOME', 'VEHICLE_YEAR']:
-        categories = list(cri[column].unique())
-        categorical_orders[column] = categories
-        cri[column] = cri[column].apply(lambda x, cats=categories: alpha_categorize(x, cats))
+    for column, order in CAR_INSURANCE_CATEGORY_ORDERS.items():
+        unexpected = set(cri[column].unique()) - set(order)
+        if unexpected:
+            raise ValueError(
+                f"{column} contains categories not covered by "
+                f"CAR_INSURANCE_CATEGORY_ORDERS: {sorted(unexpected)}"
+            )
+        cri[column] = cri[column].apply(lambda x, cats=order: alpha_categorize(x, cats))
 
     cri['CREDIT_SCORE'] = cri['CREDIT_SCORE'].fillna(int(np.mean(cri['CREDIT_SCORE'])))
     cri['ANNUAL_MILEAGE'] = cri['ANNUAL_MILEAGE'].fillna(int(np.mean(cri['ANNUAL_MILEAGE'])))
@@ -129,7 +133,7 @@ def train_car_insurance_model():
     model.fit(x_train, y_train)
     metadata = {
         'feature_columns': list(X.columns),
-        'categorical_orders': categorical_orders,
+        'categorical_orders': CAR_INSURANCE_CATEGORY_ORDERS,
     }
     return model, metadata
 

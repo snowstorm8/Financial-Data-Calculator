@@ -1,51 +1,185 @@
-SyntHacks Savants
+# Financial Data Calculator
 
-Overview
-Our Financial Data Calculator is a tool designed to help users ascertain their eligibilty for different types of insurance policies (i.e., health, auto, travel), as well as the calculation
-of income tax, loan repayability and estimated salary. By inputting specific details, the calculator provides an estimate based on predefined criteria and rules.
+A small Flask web app that estimates insurance eligibility/cost, average
+salary, loan repayability, and income tax from a handful of user-supplied
+inputs. Predictions come from scikit-learn models trained on the sample
+datasets included in this repository; the income tax calculation is plain
+rule-based arithmetic (no ML involved).
 
-Features
-Calculate eligibility for various types of insurance.
-Calulate income tax
-Check if a loan is repayable for you
-Estimate an average salary with a few given inputs
-User-friendly interface
-Customizable parameters for accurate estimation
+This is a demo/educational project. Predictions are estimates from models
+trained on the included sample datasets, not financial or insurance advice —
+don't use them to make real financial, insurance, or lending decisions.
 
-Insurance Premiums:
-Our calculator allows you to calculate your insurance eligibility for health insurance, car insurance and travel insurance. Given a few parameters, such as age, family size, income, etc.
-our calculator will be able to give you an accurate response for wheter you are eligible or not
+## What it does
 
-Estimated Average Salary:
-With a few inputs, we can reliably determine the average salary you can expect
+- **Travel insurance eligibility** — predicts whether a person is likely to
+  buy/qualify for travel insurance, given age, employment type, family size,
+  income, and travel history.
+- **Health insurance cost estimate** — predicts an expected insurance charge
+  from age, sex, BMI, number of children, and smoking status.
+- **Car insurance claim risk** — predicts whether a driver is likely to file
+  a claim, given demographic and driving-history details.
+- **Average salary estimate** — predicts an expected average salary from a
+  Glassdoor-style job rating and a handful of yes/no skill and role flags.
+- **Loan repayability** — predicts whether a loan is likely to be repaid,
+  given financial and credit-history details plus the loan's purpose.
+- **Income tax calculator** — computes tax owed, surcharge, and cess from a
+  salary and deductible amount using a fixed marginal tax-bracket table (not
+  a trained model).
 
-Loan Repayability:
-This tool, given specific data such as the installments, loan amount, credit score, etc. can reliably check whether or not a loan you take would be repayable for you or not
+## Key features
 
-Income Tax:
-Our tool also has the feature to calculate your income tax, based on your gross income and tax deductible.
+- Five scikit-learn models (`RandomForestClassifier` for the three
+  classification tasks, `GradientBoostingRegressor` for the two regression
+  tasks), trained once and persisted to disk rather than retrained per
+  request.
+- A metadata-driven prediction pipeline: each model's training column order
+  and categorical encodings are persisted alongside it, and every route
+  builds its input row by looking values up by feature name rather than
+  position — eliminating a class of bug where a value could silently be fed
+  to the wrong model feature.
+- Explicit, semantically-ordered categorical encodings for genuinely ordinal
+  fields (e.g. age bracket, income bracket, driving experience), instead of
+  encodings derived from incidental dataset row order.
+- A consistent JSON error contract: invalid/missing input returns `400`
+  with an `{"error": ...}` body, and an unexpected server-side failure
+  returns `500` with the same shape, rather than Flask's default HTML error
+  page.
+- Two working HTML forms (travel insurance, health insurance) with
+  client-side `fetch()` calls that handle HTTP error responses and network
+  failures gracefully.
+- A pytest suite covering the tax calculator, the categorical-encoding
+  helpers, every Flask route (success and failure paths), and dedicated
+  regression tests that verify each ML route builds its feature vector in
+  the correct order.
 
-Running it
-1. Install dependencies: `pip install -r requirements.txt`
-2. Train and persist the models (writes to `models/`, gitignored — you need
-   to run this once before the server will start):
-   `python train_models.py`
-3. Start the server: `python app.py`, then open http://127.0.0.1:5000
+## Tech stack
 
-`main.ipynb` still has the original exploratory/training cells for reference,
-but `train_models.py` is the one that produces what the server actually
-serves.
+- **Backend**: [Flask](https://flask.palletsprojects.com/)
+- **ML / data**: [scikit-learn](https://scikit-learn.org/),
+  [pandas](https://pandas.pydata.org/), [NumPy](https://numpy.org/),
+  [joblib](https://joblib.readthedocs.io/) (model persistence)
+- **Frontend**: server-rendered Jinja2 templates with vanilla JavaScript
+  (`fetch()`) and plain CSS — no frontend framework or build step
+- **Testing**: [pytest](https://pytest.org/)
+- **Exploration**: a Jupyter notebook (`main.ipynb`) using matplotlib/seaborn,
+  kept as reference material (see [Known limitations](#known-limitations))
 
-Current status of each feature
-- Travel insurance (page + form): working, at `/` and `POST /sum`.
-- Health insurance (page + form): working, at `/health` and
+## Project structure
+
+```
+.
+├── app.py                        # Flask app: routes, request validation, error handling
+├── train_models.py               # Trains the 5 models and writes models/*.joblib
+├── preprocessing.py               # Categorical/ordinal encoding helpers (shared by both)
+├── tax.py                        # Rule-based income tax calculator (no ML)
+├── main.ipynb                    # Original exploratory/training notebook (reference only)
+├── requirements.txt               # Pinned Python dependencies
+├── templates/
+│   ├── base.html                 # Shared layout + nav
+│   ├── main website.html         # Travel insurance form (served at "/")
+│   └── health.html               # Health insurance form (served at "/health")
+├── static/
+│   └── style.css                 # Site-wide CSS
+├── tests/
+│   ├── conftest.py               # Shared Flask test-client fixture
+│   ├── test_app.py                # Route-level tests (success + error paths)
+│   ├── test_feature_ordering.py  # Regression tests for per-model feature ordering
+│   ├── test_preprocessing.py     # Encoding-helper tests
+│   └── test_tax.py                # Tax calculator tests
+├── Car_Insurance_Claim.csv       # Source dataset — car insurance model
+├── TravelInsurancePrediction.csv # Source dataset — travel insurance model
+├── insurance.csv                  # Source dataset — health insurance model
+├── loan_data.csv                  # Source dataset — loan repayability model
+├── salary_data_cleaned.csv       # Source dataset — salary model
+└── models/                        # Generated by train_models.py — gitignored, not in the repo
+```
+
+## Installation / setup
+
+Requires Python 3 and pip (developed and tested with Python 3.14).
+
+```bash
+git clone <this-repository-url>
+cd "<Folder Name>"
+python3 -m venv .venv && source .venv/bin/activate  # optional but recommended
+pip install -r requirements.txt
+```
+
+## How to train the models
+
+The server loads pre-trained models from `models/`, which is gitignored and
+not shipped in the repository — you must generate it once before the app
+will start:
+
+```bash
+python train_models.py
+```
+
+This reads the five CSV datasets in the repo root, trains each model with a
+fixed random seed (so retraining reproduces the same models), and writes
+`models/<name>_model.joblib` plus `models/<name>_metadata.joblib` (feature
+column order and any categorical encodings) for each of: `travel_insurance`,
+`health_insurance`, `salary`, `loan`, and `car_insurance`.
+
+## How to run the Flask app
+
+```bash
+python app.py
+```
+
+Then open http://127.0.0.1:5000. If `models/` hasn't been generated yet,
+the app prints an error explaining that `train_models.py` needs to be run
+first and exits, rather than starting in a broken state.
+
+## How to run tests
+
+```bash
+pytest
+```
+
+This runs the full suite: every Flask route (valid input, missing/invalid
+input, and unexpected-failure handling), the categorical-encoding helpers in
+`preprocessing.py`, the tax calculator, and regression tests that check each
+ML-backed route sends the correctly-ordered, correctly-labeled feature
+vector to its model.
+
+## Current feature status
+
+- **Travel insurance** (page + form): working, at `GET /` and `POST /sum`.
+- **Health insurance** (page + form): working, at `GET /health` and
   `POST /calculate_health`.
-- Car insurance, salary estimate, loan repayability, income tax: the models
-  are trained and served as JSON APIs (`POST /calculate_car`,
-  `/calculate_salary`, `/calculate_loan`, `/calculate_tax` — request bodies
-  are documented in the docstrings in `app.py`), but there is no HTML form
-  for them yet. The nav bar links for these are still placeholders (`#`).
+- **Car insurance, salary estimate, loan repayability, income tax**: the
+  models are trained and served as JSON APIs (`POST /calculate_car`,
+  `POST /calculate_salary`, `POST /calculate_loan`, `POST /calculate_tax` —
+  exact request bodies are documented in each route's docstring in
+  `app.py`), but there is no HTML form for any of them yet. The
+  corresponding nav bar links are still placeholders (`#`).
 
-Tests
-`pytest` (covers the tax calculator, the categorical-encoding helpers, and
-every Flask route).
+## Known limitations
+
+- **No HTML forms for four of the six features.** Car insurance, salary,
+  loan repayability, and income tax are JSON-only APIs; the UI only covers
+  travel and health insurance.
+- **Model artifacts aren't committed.** `models/` is gitignored — the app
+  will not start until you run `train_models.py` locally.
+- **`main.ipynb` is reference material, not a build artifact.** It mirrors
+  the original exploratory work but is not kept fully in sync with
+  `train_models.py` (for example, it doesn't fix a random seed, and its car
+  insurance section still derives categorical order from dataset row order
+  rather than the fixed, semantically-ordered encoding `train_models.py`
+  now uses — see the note inside the notebook). `train_models.py` is the
+  authoritative training path for what the app actually serves.
+- **The travel insurance form's employment-type question is inverted
+  relative to how the model was trained.** The form asks the user to
+  "Enter 1" for public sector / "Enter 0" for private sector, but
+  `categorize_TIP_ET` in `preprocessing.py` (used when the underlying model
+  was trained) encodes `Government Sector` as `0` and
+  `Private Sector/Self Employed` as `1` — so a `1` submitted from the form
+  is fed to the model as the opposite of what the label says.
+- **No frontend automated tests.** The two inline `<script>` blocks in
+  `templates/` (travel and health forms) have no JS test coverage; they've
+  only been verified manually.
+- **Not hardened for production.** No authentication, and `app.py` runs
+  Flask's built-in development server — it isn't set up for production
+  deployment as-is.

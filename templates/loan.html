@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Loan Repayability{% endblock %}
+
+{% block nav_links %}
+  <a href="/health">Health</a>
+  <a href="/">Travel</a>
+  <a href="/salary">Salary</a>
+  <a href="/loan">Loan Default</a>
+  <a href="/car">Car</a>
+  <a href="/tax">Income Calculator</a>
+{% endblock %}
+
+{% block content %}
+    <h1>Loan Repayability</h1>
+    <p style="text-align:center">Enter your loan and credit details below to find out whether the loan is likely to be repaid.
+    </p>
+    <ol>
+      <li>
+        <div>
+          <p>Do you meet the lender's credit underwriting criteria? (Enter 1 for Yes and 0 for No)</p>
+          <input id="credit_policy" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is the loan's interest rate? (e.g. 0.11 for 11%)</p>
+          <input id="int_rate" placeholder="Enter a value" type="number" step="0.001"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is the monthly installment owed?</p>
+          <input id="installment" placeholder="Enter a value" type="number" step="0.01"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is the natural log of your annual income?</p>
+          <input id="log_annual_inc" placeholder="Enter a value" type="number" step="0.01"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is your debt-to-income ratio?</p>
+          <input id="dti" placeholder="Enter a value" type="number" step="0.01"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is your FICO credit score?</p>
+          <input id="fico" placeholder="Enter a value" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>How many days have you had a credit line open?</p>
+          <input id="days_with_cr_line" placeholder="Enter a value" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is your revolving balance?</p>
+          <input id="revol_bal" placeholder="Enter a value" type="number" step="0.01"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is your revolving line utilization rate? (%)</p>
+          <input id="revol_util" placeholder="Enter a value" type="number" step="0.01"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>How many credit inquiries have you had in the last 6 months?</p>
+          <input id="inq_last_6mths" placeholder="Enter a value" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>How many times have you been delinquent in the past 2 years?</p>
+          <input id="delinq_2yrs" placeholder="Enter a value" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>How many derogatory public records do you have?</p>
+          <input id="pub_rec" placeholder="Enter a value" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is the purpose of the loan?</p>
+          <select id="purpose">
+            {% for value in purposes %}
+            <option value="{{ value }}">{{ value.replace('_', ' ') }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </li>
+    </ol>
+    <button class="button" onclick="calculateLoan()">Submit</button>
+    <p id="text"></p>
+
+    <script>
+      function calculateLoan() {
+        const apiKeyByDomId = {
+          'credit_policy': 'credit.policy',
+          'int_rate': 'int.rate',
+          'installment': 'installment',
+          'log_annual_inc': 'log.annual.inc',
+          'dti': 'dti',
+          'fico': 'fico',
+          'days_with_cr_line': 'days.with.cr.line',
+          'revol_bal': 'revol.bal',
+          'revol_util': 'revol.util',
+          'inq_last_6mths': 'inq.last.6mths',
+          'delinq_2yrs': 'delinq.2yrs',
+          'pub_rec': 'pub.rec',
+        };
+        const body = {};
+        for (const [domId, apiKey] of Object.entries(apiKeyByDomId)) {
+          const value = document.getElementById(domId).value;
+          if (value === "") {
+            document.getElementById("text").textContent = "Please fill in all fields before submitting.";
+            return;
+          }
+          body[apiKey] = value;
+        }
+        body['purpose'] = document.getElementById("purpose").value;
+
+        fetch('/calculate_loan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+          if (!ok) {
+            document.getElementById("text").textContent = data.error || 'Something went wrong. Please try again.';
+            return;
+          }
+          document.getElementById("text").textContent = data.loan_repayable
+            ? 'This loan is likely to be repaid.'
+            : 'This loan is not likely to be repaid.';
+        })
+        .catch(() => {
+          document.getElementById("text").textContent = 'Could not reach the server. Please try again.';
+        });
+      }
+    </script>
+{% endblock %}

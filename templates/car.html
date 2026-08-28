@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Car Insurance{% endblock %}
+
+{% block nav_links %}
+  <a href="/health">Health</a>
+  <a href="/">Travel</a>
+  <a href="/salary">Salary</a>
+  <a href="/loan">Loan Default</a>
+  <a href="/car">Car</a>
+  <a href="/tax">Income Calculator</a>
+{% endblock %}
+
+{% block content %}
+    <h1>Car Insurance</h1>
+    <p style="text-align:center">Enter your details below to find out your car insurance claim risk.
+    </p>
+    <ol>
+      <li>
+        <div>
+          <p>What is your age bracket?</p>
+          <select id="age">
+            <option value="" disabled selected>Select an option...</option>
+            {% for value in orders['AGE'] %}
+            <option value="{{ value }}">{{ value }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is your gender?</p>
+          <select id="gender">
+            <option value="" disabled selected>Select an option...</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>How many years of driving experience do you have?</p>
+          <select id="driving_experience">
+            <option value="" disabled selected>Select an option...</option>
+            {% for value in orders['DRIVING_EXPERIENCE'] %}
+            <option value="{{ value }}">{{ value }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is your education level?</p>
+          <select id="education">
+            <option value="" disabled selected>Select an option...</option>
+            {% for value in orders['EDUCATION'] %}
+            <option value="{{ value }}">{{ value }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is your income bracket?</p>
+          <select id="income">
+            <option value="" disabled selected>Select an option...</option>
+            {% for value in orders['INCOME'] %}
+            <option value="{{ value }}">{{ value }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is your credit score? (0 to 1)</p>
+          <input id="credit_score" placeholder="Enter a value between 0 and 1" type="number" step="0.01" min="0" max="1"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Do you own your vehicle? (Enter 1 for Yes and 0 for No)</p>
+          <input id="vehicle_ownership" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What year is your vehicle from?</p>
+          <select id="vehicle_year">
+            <option value="" disabled selected>Select an option...</option>
+            {% for value in orders['VEHICLE_YEAR'] %}
+            <option value="{{ value }}">{{ value }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Are you married? (Enter 1 for Yes and 0 for No)</p>
+          <input id="married" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Do you have children? (Enter 1 for Yes and 0 for No)</p>
+          <input id="children" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is your annual mileage?</p>
+          <input id="annual_mileage" placeholder="Enter a value" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>How many speeding violations have you had?</p>
+          <input id="speeding_violations" placeholder="Enter a value" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>How many DUIs have you had?</p>
+          <input id="duis" placeholder="Enter a value" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>How many past accidents have you had?</p>
+          <input id="past_accidents" placeholder="Enter a value" type="number"/>
+        </div>
+      </li>
+    </ol>
+    <button class="button" onclick="calculateCar()">Submit</button>
+    <p id="text"></p>
+
+    <script>
+      function calculateCar() {
+        const categoryValues = {
+          age: document.getElementById("age").value,
+          gender: document.getElementById("gender").value,
+          driving_experience: document.getElementById("driving_experience").value,
+          education: document.getElementById("education").value,
+          income: document.getElementById("income").value,
+          vehicle_year: document.getElementById("vehicle_year").value,
+        };
+        const numericIds = [
+          'credit_score', 'vehicle_ownership', 'married', 'children',
+          'annual_mileage', 'speeding_violations', 'duis', 'past_accidents',
+        ];
+        const numericValues = {};
+        for (const id of numericIds) {
+          numericValues[id] = document.getElementById(id).value;
+        }
+        if (Object.values(categoryValues).some(value => value === "") ||
+            Object.values(numericValues).some(value => value === "")) {
+          document.getElementById("text").textContent = "Please fill in all fields before submitting.";
+          return;
+        }
+
+        fetch('/calculate_car', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...categoryValues, ...numericValues })
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+          if (!ok) {
+            document.getElementById("text").textContent = data.error || 'Something went wrong. Please try again.';
+            return;
+          }
+          document.getElementById("text").textContent = data.claim_predicted
+            ? 'You are likely to file a claim.'
+            : 'You are not likely to file a claim.';
+        })
+        .catch(() => {
+          document.getElementById("text").textContent = 'Could not reach the server. Please try again.';
+        });
+      }
+    </script>
+{% endblock %}

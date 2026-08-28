@@ -8,6 +8,31 @@ def test_health_page_renders(client):
     assert response.status_code == 200
 
 
+def test_salary_page_renders(client):
+    response = client.get('/salary')
+    assert response.status_code == 200
+
+
+def test_loan_page_renders(client):
+    response = client.get('/loan')
+    assert response.status_code == 200
+    # Purpose options must come from the model's actual metadata, not a
+    # hardcoded list that could drift from what the model was trained on.
+    assert b'debt_consolidation' in response.data
+
+
+def test_car_page_renders(client):
+    response = client.get('/car')
+    assert response.status_code == 200
+    # Category options must come from the model's actual metadata.
+    assert b'26-39' in response.data
+
+
+def test_tax_page_renders(client):
+    response = client.get('/tax')
+    assert response.status_code == 200
+
+
 def test_sum_travel_insurance(client):
     response = client.post('/sum', json={
         'value1': 30, 'value2': 1, 'value3': 3, 'value4': 500000,

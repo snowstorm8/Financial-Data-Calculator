@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Income Tax Calculator{% endblock %}
+
+{% block nav_links %}
+  <a href="/health">Health</a>
+  <a href="/">Travel</a>
+  <a href="/salary">Salary</a>
+  <a href="/loan">Loan Default</a>
+  <a href="/car">Car</a>
+  <a href="/tax">Income Calculator</a>
+{% endblock %}
+
+{% block content %}
+    <h1>Income Tax Calculator</h1>
+    <p style="text-align:center">Enter your salary and deductible amount below to calculate your income tax.
+    </p>
+    <ol>
+      <li>
+        <div>
+          <p>What is your salary?</p>
+          <input id="salary" placeholder="Enter a value" type="number" step="0.01"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>What is your total deductible amount?</p>
+          <input id="deductible" placeholder="Enter a value" type="number" step="0.01"/>
+        </div>
+      </li>
+    </ol>
+    <button class="button" onclick="calculateTax()">Submit</button>
+    <p id="text"></p>
+
+    <script>
+      function calculateTax() {
+        const salary = document.getElementById("salary").value;
+        const deductible = document.getElementById("deductible").value;
+
+        if (salary === "" || deductible === "") {
+          document.getElementById("text").textContent = "Please fill in all fields before submitting.";
+          return;
+        }
+
+        fetch('/calculate_tax', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ salary, deductible })
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+          if (!ok) {
+            document.getElementById("text").textContent = data.error || 'Something went wrong. Please try again.';
+            return;
+          }
+          document.getElementById("text").textContent =
+            `Final tax: $${data.final_tax} (surcharge: $${data.surcharge_amount}, cess: $${data.cess_amount})`;
+        })
+        .catch(() => {
+          document.getElementById("text").textContent = 'Could not reach the server. Please try again.';
+        });
+      }
+    </script>
+{% endblock %}

@@ -117,6 +117,26 @@ def health_page():
     return render_template('health.html')
 
 
+@app.route('/salary')
+def salary_page():
+    return render_template('salary.html')
+
+
+@app.route('/loan')
+def loan_page():
+    return render_template('loan.html', purposes=_loan_meta['purpose_categories'])
+
+
+@app.route('/car')
+def car_page():
+    return render_template('car.html', orders=_car_meta['categorical_orders'])
+
+
+@app.route('/tax')
+def tax_page():
+    return render_template('tax.html')
+
+
 @app.route('/sum', methods=['POST'])
 def sum():
     """Travel insurance eligibility. Existing contract, unchanged:

@@ -45,13 +45,17 @@ don't use them to make real financial, insurance, or lending decisions.
   with an `{"error": ...}` body, and an unexpected server-side failure
   returns `500` with the same shape, rather than Flask's default HTML error
   page.
-- Two working HTML forms (travel insurance, health insurance) with
+- Six working HTML forms (travel insurance, health insurance, car
+  insurance, salary estimate, loan repayability, income tax) with
   client-side `fetch()` calls that handle HTTP error responses and network
-  failures gracefully.
+  failures gracefully. The car and loan forms render their dropdown
+  options (age bracket, education, loan purpose, etc.) directly from the
+  trained model's metadata, so the choices offered can never drift from
+  the values the model actually accepts.
 - A pytest suite covering the tax calculator, the categorical-encoding
-  helpers, every Flask route (success and failure paths), and dedicated
-  regression tests that verify each ML route builds its feature vector in
-  the correct order.
+  helpers, every Flask route (success and failure paths) including the
+  new form pages, and dedicated regression tests that verify each ML route
+  builds its feature vector in the correct order.
 
 ## Tech stack
 
@@ -78,7 +82,11 @@ don't use them to make real financial, insurance, or lending decisions.
 ├── templates/
 │   ├── base.html                 # Shared layout + nav
 │   ├── main website.html         # Travel insurance form (served at "/")
-│   └── health.html               # Health insurance form (served at "/health")
+│   ├── health.html               # Health insurance form (served at "/health")
+│   ├── salary.html                # Salary estimate form (served at "/salary")
+│   ├── loan.html                  # Loan repayability form (served at "/loan")
+│   ├── car.html                   # Car insurance form (served at "/car")
+│   └── tax.html                   # Income tax form (served at "/tax")
 ├── static/
 │   └── style.css                 # Site-wide CSS
 ├── tests/
@@ -146,21 +154,23 @@ vector to its model.
 
 ## Current feature status
 
-- **Travel insurance** (page + form): working, at `GET /` and `POST /sum`.
-- **Health insurance** (page + form): working, at `GET /health` and
-  `POST /calculate_health`.
-- **Car insurance, salary estimate, loan repayability, income tax**: the
-  models are trained and served as JSON APIs (`POST /calculate_car`,
-  `POST /calculate_salary`, `POST /calculate_loan`, `POST /calculate_tax` —
-  exact request bodies are documented in each route's docstring in
-  `app.py`), but there is no HTML form for any of them yet. The
-  corresponding nav bar links are still placeholders (`#`).
+All six features have both a working HTML form and the JSON API it submits
+to (exact request bodies are documented in each route's docstring in
+`app.py`):
+
+- **Travel insurance**: `GET /` (form) and `POST /sum`.
+- **Health insurance**: `GET /health` (form) and `POST /calculate_health`.
+- **Salary estimate**: `GET /salary` (form) and `POST /calculate_salary`.
+- **Loan repayability**: `GET /loan` (form) and `POST /calculate_loan`.
+- **Car insurance**: `GET /car` (form) and `POST /calculate_car`.
+- **Income tax**: `GET /tax` (form) and `POST /calculate_tax`.
+
+Every form does its own client-side check that all fields are filled in
+before submitting, and shows the server's actual `{"error": ...}` message
+(never a raw `undefined`) if the request is rejected or fails.
 
 ## Known limitations
 
-- **No HTML forms for four of the six features.** Car insurance, salary,
-  loan repayability, and income tax are JSON-only APIs; the UI only covers
-  travel and health insurance.
 - **Model artifacts aren't committed.** `models/` is gitignored — the app
   will not start until you run `train_models.py` locally.
 - **`main.ipynb` is reference material, not a build artifact.** It mirrors
@@ -177,9 +187,9 @@ vector to its model.
   was trained) encodes `Government Sector` as `0` and
   `Private Sector/Self Employed` as `1` — so a `1` submitted from the form
   is fed to the model as the opposite of what the label says.
-- **No frontend automated tests.** The two inline `<script>` blocks in
-  `templates/` (travel and health forms) have no JS test coverage; they've
-  only been verified manually.
+- **No frontend automated tests.** The inline `<script>` blocks in
+  `templates/` (one per form) have no JS test coverage; they've only been
+  verified manually against the running Flask server.
 - **Not hardened for production.** No authentication, and `app.py` runs
   Flask's built-in development server — it isn't set up for production
   deployment as-is.

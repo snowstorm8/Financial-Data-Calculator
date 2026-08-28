@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Salary Estimate{% endblock %}
+
+{% block nav_links %}
+  <a href="/health">Health</a>
+  <a href="/">Travel</a>
+  <a href="/salary">Salary</a>
+  <a href="/loan">Loan Default</a>
+  <a href="/car">Car</a>
+  <a href="/tax">Income Calculator</a>
+{% endblock %}
+
+{% block content %}
+    <h1>Salary Estimate</h1>
+    <p style="text-align:center">Enter your details below to find out your expected average salary.
+    </p>
+    <ol>
+      <li>
+        <div>
+          <p>What is the employer's Glassdoor rating? (0 to 5)</p>
+          <input id="rating" placeholder="Enter a value between 0 and 5" type="number" step="0.1" min="0" max="5"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Is this an hourly position? (Enter 1 for Yes and 0 for No)</p>
+          <input id="hourly" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Does the listing provide the salary estimate? (Enter 1 for Yes and 0 for No)</p>
+          <input id="employer_provided" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Is the job in the same state as the company headquarters? (Enter 1 for Yes and 0 for No)</p>
+          <input id="same_state" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>How old is the company (in years)?</p>
+          <input id="age" placeholder="Enter a value" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Does the job require Python? (Enter 1 for Yes and 0 for No)</p>
+          <input id="python_yn" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Does the job require R? (Enter 1 for Yes and 0 for No)</p>
+          <input id="r_yn" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Does the job require Spark? (Enter 1 for Yes and 0 for No)</p>
+          <input id="spark" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Does the job require AWS? (Enter 1 for Yes and 0 for No)</p>
+          <input id="aws" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Does the job require Excel? (Enter 1 for Yes and 0 for No)</p>
+          <input id="excel" placeholder="Enter 1 or 0" type="number"/>
+        </div>
+      </li>
+    </ol>
+    <button class="button" onclick="calculateSalary()">Submit</button>
+    <p id="text"></p>
+
+    <script>
+      function calculateSalary() {
+        const ids = [
+          'rating', 'hourly', 'employer_provided', 'same_state', 'age',
+          'python_yn', 'r_yn', 'spark', 'aws', 'excel',
+        ];
+        const values = {};
+        for (const id of ids) {
+          values[id] = document.getElementById(id).value;
+        }
+        if (Object.values(values).some(value => value === "")) {
+          document.getElementById("text").textContent = "Please fill in all fields before submitting.";
+          return;
+        }
+
+        fetch('/calculate_salary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values)
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+          if (!ok) {
+            document.getElementById("text").textContent = data.error || 'Something went wrong. Please try again.';
+            return;
+          }
+          document.getElementById("text").textContent = `Estimated average salary: $${data.predicted_salary_k}k`;
+        })
+        .catch(() => {
+          document.getElementById("text").textContent = 'Could not reach the server. Please try again.';
+        });
+      }
+    </script>
+{% endblock %}

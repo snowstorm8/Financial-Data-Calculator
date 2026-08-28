@@ -19,6 +19,13 @@
       <li>
         <div>
           <p>What is your age bracket?</p>
+          <!-- Options are rendered from the model's own metadata (passed
+               in by app.py's car_page route) rather than hardcoded, so the
+               choices offered can never drift from what the model accepts.
+               The placeholder option is disabled + has an empty value, so
+               the browser won't let it be submitted as a real selection;
+               calculateCar()'s validation below also rejects an empty
+               value defensively even if that were bypassed. -->
           <select id="age">
             <option value="" disabled selected>Select an option...</option>
             {% for value in orders['AGE'] %}
@@ -135,6 +142,10 @@
 
     <script>
       function calculateCar() {
+        // Every select still has its placeholder ("") selected until the
+        // user explicitly picks a real option, so checking for "" below
+        // (alongside the numeric fields) catches an unanswered dropdown
+        // the same way it catches an empty number input.
         const categoryValues = {
           age: document.getElementById("age").value,
           gender: document.getElementById("gender").value,

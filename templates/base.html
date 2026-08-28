@@ -1,3 +1,7 @@
+<!-- Shared layout for every calculator page. Each page template extends
+     this, overriding `title`, `nav_links` (its entry in the nav dropdown,
+     duplicated verbatim across pages since Jinja has no shared-partial
+     mechanism in use here), and `content` (the form + its inline script). -->
 <html>
   <head>
     <title>{% block title %}Financial Calculator{% endblock %}</title>
@@ -6,6 +10,8 @@
   <body>
     <div class="navbar">
       <a href="/">Home</a>
+      <!-- .dropdown-content is shown on hover via CSS only (see style.css);
+           no JS is needed to open/close this menu. -->
       <div class="dropdown">
         <button class="dropbtn">Choose
           <i class="fa fa-caret-down"></i>

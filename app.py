@@ -40,10 +40,15 @@ _car_model, _car_meta = _load('car_insurance')
 
 
 class InvalidInput(ValueError):
+    """Raised by the _require_* helpers for a missing/malformed request
+    field; caught by _handle_invalid_input and turned into a 400 JSON
+    response rather than propagating to the generic 500 handler."""
     pass
 
 
 def _require_float(data, key):
+    """Fetch `key` from the request body and coerce it to float, or raise
+    InvalidInput (-> 400) if it's missing or not numeric."""
     if key not in data:
         raise InvalidInput(f"missing field '{key}'")
     try:
@@ -53,6 +58,10 @@ def _require_float(data, key):
 
 
 def _require_category(data, key, allowed):
+    """Fetch `key` from the request body and check it's one of `allowed`,
+    or raise InvalidInput (-> 400). Used ahead of alpha_categorize calls so
+    an unrecognized category is rejected explicitly instead of silently
+    encoding to None."""
     if key not in data:
         raise InvalidInput(f"missing field '{key}'")
     value = data[key]
@@ -124,11 +133,17 @@ def salary_page():
 
 @app.route('/loan')
 def loan_page():
+    # Purpose dropdown options come from the model's actual persisted
+    # metadata rather than a hardcoded list in the template, so the choices
+    # offered can never drift from what /calculate_loan will accept.
     return render_template('loan.html', purposes=_loan_meta['purpose_categories'])
 
 
 @app.route('/car')
 def car_page():
+    # Same rationale as loan_page: the dropdown categories (age bracket,
+    # education, etc.) are read from the model's metadata, not duplicated
+    # by hand in car.html.
     return render_template('car.html', orders=_car_meta['categorical_orders'])
 
 
@@ -163,6 +178,10 @@ def sum():
         'EverTravelledAbroad': val7,
     }
     row = _feature_row(values, _travel_meta['feature_columns'])
+    # `sum` here is a local variable shadowing the builtin of the same name
+    # (and the route function itself is also named `sum`) — harmless since
+    # neither this function nor anything it calls needs the builtin, but
+    # worth knowing before reaching for `sum(...)` in a future edit here.
     if _travel_model.predict(row)[0] == 1:
         sum = 'You will get travel insurance'
     else:
@@ -228,6 +247,12 @@ def calculate_loan():
     numeric_fields = [c for c in _loan_meta['feature_columns'] if not c.startswith('purpose_')]
     values = {field: _require_float(data, field) for field in numeric_fields}
     purpose = _require_category(data, 'purpose', set(_loan_meta['purpose_categories']))
+    # Reconstruct the one-hot `purpose_*` columns pd.get_dummies produced at
+    # training time. Because the model was trained with drop_first=True
+    # (see train_loan_model), the alphabetically-first category has no
+    # purpose_* column at all — so a request for that category (all_other)
+    # naturally leaves every purpose_* column at 0.0 here, matching how it
+    # was represented during training, with no special case needed.
     for column in _loan_meta['feature_columns']:
         if column.startswith('purpose_'):
             values[column] = 1.0 if column == f'purpose_{purpose}' else 0.0
@@ -268,6 +293,10 @@ def calculate_car():
         orders['VEHICLE_YEAR'],
     )
     gender = _require_category(data, 'gender', {'male', 'female'})
+    # Mirrors preprocessing.FMconv's encoding (female -> 1, male -> 0) by
+    # hand rather than importing it, since FMconv returns an int and every
+    # other value in `row` below is a float; keep this in sync with FMconv
+    # if that encoding ever changes.
     gender_value = 1.0 if gender == 'female' else 0.0
 
     row = {

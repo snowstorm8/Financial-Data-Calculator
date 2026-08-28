@@ -91,6 +91,11 @@
       <li>
         <div>
           <p>What is the purpose of the loan?</p>
+          <!-- Options come from the model's persisted purpose_categories
+               (passed in by app.py's loan_page route), so this list can't
+               drift from what /calculate_loan actually accepts. Displayed
+               with underscores turned into spaces for readability; the
+               underlying value submitted is the raw category name. -->
           <select id="purpose">
             {% for value in purposes %}
             <option value="{{ value }}">{{ value.replace('_', ' ') }}</option>
@@ -104,6 +109,10 @@
 
     <script>
       function calculateLoan() {
+        // DOM element ids can't contain dots, but /calculate_loan expects
+        // dotted field names (matching loan_data.csv's original column
+        // names, e.g. 'credit.policy'). This map translates each
+        // underscore-named input id to the dotted key the API expects.
         const apiKeyByDomId = {
           'credit_policy': 'credit.policy',
           'int_rate': 'int.rate',

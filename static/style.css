@@ -1,3 +1,6 @@
+/* Site-wide styling for all calculator pages (templates/*.html). Every
+   page shares this one stylesheet — there's no per-page CSS. */
+
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: #f0f4f8;
@@ -13,6 +16,8 @@ h1 {
   font-family: 'Times New Roman', serif;
 }
 
+/* Each form question is one <li><div>...</div></li> "card" — the ol/li
+   nesting here is a layout convenience, not a real ordered list. */
 ol {
   list-style-type: none;
   padding: 0;
@@ -44,6 +49,8 @@ p {
   margin: 0 0 10px;
 }
 
+/* input and select share one rule so the car/loan forms' dropdowns look
+   identical to every other form's plain number inputs. */
 input, select {
   width: 100%;
   padding: 12px;
@@ -83,6 +90,8 @@ button:active {
   transform: scale(1);
 }
 
+/* Result/error message paragraph each form's script writes into via
+   `document.getElementById("text").textContent`. */
 #text {
   text-align: center;
   font-size: 20px;
@@ -90,6 +99,8 @@ button:active {
   margin-top: 20px;
 }
 
+/* Top navigation bar and its hover-triggered "Choose" dropdown menu
+   (opened/closed by .dropdown:hover below — no JS involved). */
 .navbar {
   overflow: hidden;
   background-color: #333;

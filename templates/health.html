@@ -52,6 +52,8 @@
 
     <script>
       function health() {
+        // Inputs are keyed by their position in the form (ids "1".."5")
+        // rather than descriptive ids; mapped to the API's field names here.
         const age_health = document.getElementById("1").value;
         const sex = document.getElementById("2").value;
         const has_children = document.getElementById("3").value;

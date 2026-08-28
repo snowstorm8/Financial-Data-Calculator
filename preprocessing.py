@@ -1,3 +1,10 @@
+"""Categorical/ordinal encoding helpers shared by train_models.py (fitting
+the models) and app.py (encoding live request data the same way at
+inference time). Keeping both call sites on these same functions is what
+guarantees a value like 'female' or '26-39' is always turned into the same
+number the model was actually trained on.
+"""
+
 # Genuinely ordinal (company size, smallest to largest), so the encoding is
 # a fixed, explicit order rather than derived from row/appearance order in
 # whatever dataset happens to be loaded.
@@ -13,10 +20,18 @@ COMPANY_SIZE_ORDER = [
 
 
 def categorize(number):
+    """Encode a company-size bracket by its position in COMPANY_SIZE_ORDER."""
     return alpha_categorize(number, COMPANY_SIZE_ORDER)
 
 
 def categorize_TIP_ET(number):
+    """Encode TravelInsurancePrediction.csv's 'Employment Type' column.
+
+    Government Sector -> 0, Private Sector/Self Employed -> 1. Note this is
+    the opposite of what the travel insurance form's on-page label tells the
+    user to enter for "public sector" — see the known-limitation note next
+    to that question in main website.html.
+    """
     if number == 'Government Sector':
         return 0
     elif number == 'Private Sector/Self Employed':
@@ -24,6 +39,7 @@ def categorize_TIP_ET(number):
 
 
 def YNconv(number):
+    """Encode a 'Yes'/'No' string column (case-sensitive) as 1/0."""
     if number == 'Yes':
         return 1
     elif number == 'No':
@@ -31,6 +47,12 @@ def YNconv(number):
 
 
 def YNlowerconv(number):
+    """Encode a lowercase 'yes'/'no' string column as 1/0.
+
+    Kept separate from YNconv (rather than a case-insensitive version of it)
+    because it mirrors insurance.csv's actual casing exactly; the two source
+    datasets happen to disagree on capitalization.
+    """
     if number == 'yes':
         return 1
     elif number == 'no':
@@ -38,6 +60,13 @@ def YNlowerconv(number):
 
 
 def FMconv(number):
+    """Encode gender as female -> 1, male -> 0.
+
+    This exact mapping is baked into every model trained on a column this
+    touches, so app.py's car-insurance route reproduces it by hand
+    (`1.0 if gender == 'female' else 0.0`) instead of importing this
+    function — keep the two in sync if this ever changes.
+    """
     if number == 'female':
         return 1
     elif number == 'male':
@@ -45,6 +74,19 @@ def FMconv(number):
 
 
 def alpha_categorize(number, type):
+    """Return the index of `number` within the ordered list `type`.
+
+    Used both for genuinely-ordinal encodings (COMPANY_SIZE_ORDER,
+    CAR_INSURANCE_CATEGORY_ORDERS) where the index is a meaningful rank, and
+    the resulting number is what the model was actually trained on.
+
+    Silently returns None (Python's implicit function return) if `number`
+    isn't found in `type` — this function assumes the caller has already
+    validated membership. app.py enforces that by only ever calling this
+    after `_require_category` has confirmed the value is in the allowed
+    set; skipping that check would let an unrecognized category through as
+    a null feature value instead of a clear error.
+    """
     for num in range(len(type)):
         if number == type[num]:
             return num

@@ -1,3 +1,10 @@
+"""Route-level tests: every page renders, and every JSON endpoint handles
+its success path, its missing/invalid-input path (-> 400), and — for one
+representative route — an unexpected internal failure (-> 500). See
+test_feature_ordering.py for the complementary check that each route
+builds the correct feature vector, not just *a* response."""
+
+
 def test_index_renders(client):
     response = client.get('/')
     assert response.status_code == 200

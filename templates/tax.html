@@ -41,6 +41,8 @@
           document.getElementById("text").textContent = "Please fill in all fields before submitting.";
           return;
         }
+        // Note: a deductible >= salary is not an error — /calculate_tax
+        // (see tax.py) simply returns $0 for all three amounts.
 
         fetch('/calculate_tax', {
           method: 'POST',

@@ -24,6 +24,12 @@
       </li>
       <li>
         <div>
+          <!-- KNOWN ISSUE: this label is inverted relative to how the model
+               was trained. categorize_TIP_ET in preprocessing.py encodes
+               Government Sector (public) as 0 and Private Sector as 1, so a
+               "1" entered here for "public sector" is fed to the model as
+               private sector. See README's Known limitations. Not fixed
+               here since this task is documentation-only. -->
           <p>Are you employed in the public sector (Enter 1) or private sector (Enter 0)?</p>
           <input id="2" placeholder="Enter 1 or 0" type = 'number' />
         </div>
@@ -70,6 +76,8 @@
 
     <script>
       function summation() {
+        // Inputs are keyed by their position in the form (ids "1".."8"),
+        // matching /sum's positional value1..value8 body shape directly.
         const value1 = document.getElementById("1").value;
         const value2 = document.getElementById("2").value;
         const value3 = document.getElementById("3").value;
